@@ -25,7 +25,7 @@ COPY . .
 RUN npm run build && npm test && npm prune --omit=dev && mkdir -p node_modules
 
 # ---------- Etapa 2: runtime mínimo ----------
-FROM gcr.io/distroless/nodejs22-debian12:nonroot AS runtime
+FROM gcr.io/distroless/nodejs22-debian13:nonroot AS runtime
 ARG APP_VERSION=dev
 LABEL org.opencontainers.image.title="api" \
       org.opencontainers.image.description="API del laboratorio del Curso Docker" \

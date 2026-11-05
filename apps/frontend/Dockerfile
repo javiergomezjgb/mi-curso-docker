@@ -15,6 +15,11 @@ RUN npm run build && npm test
 
 # ---------- Etapa 2: nginx con nuestra configuración y estáticos ----------
 FROM nginxinc/nginx-unprivileged:stable-alpine AS nginx-base
+# Parche de la base: la imagen oficial aún no trae las versiones de Alpine que corrigen CVE HIGH/CRITICAL.
+USER 0
+# hadolint ignore=DL3017
+RUN apk upgrade --no-cache
+USER 101
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 
