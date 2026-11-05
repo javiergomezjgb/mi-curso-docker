@@ -1,0 +1,15 @@
+# Lo que NO debe entrar en el contexto de build (curso: plantilla 09, corregida)
+node_modules
+dist
+npm-debug.log*
+.git
+.gitignore
+.env
+.env.*
+*.md
+Dockerfile*
+.dockerignore
+coverage
+.vscode
+.idea
+# Ojo: NO se excluyen test/ ni package-lock.json; el builder los necesita (errata de la plantilla 09)

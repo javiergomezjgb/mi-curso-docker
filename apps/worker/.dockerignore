@@ -1,0 +1,14 @@
+# Contexto de build del worker (curso: plantilla 09, corregida)
+__pycache__
+*.pyc
+.pytest_cache
+.venv
+venv
+.git
+.gitignore
+.env
+.env.*
+*.md
+Dockerfile*
+.dockerignore
+# Ojo: NO se excluye tests/; el builder ejecuta los tests (errata de la plantilla 09)

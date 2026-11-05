@@ -1,0 +1,10 @@
+# Configuración de hadolint del equipo (Día 1; se amplía el Día 3)
+# El entregable exige 0 avisos: cualquier warning hace fallar "make lint" y el pipeline.
+failure-threshold: warning
+# Registros de los que aceptamos imágenes base
+trustedRegistries:
+  - docker.io
+  - gcr.io
+  - ghcr.io
+# Reglas ignoradas: ninguna. Si alguna vez ignoras una, documenta aquí el motivo.
+ignored: []
