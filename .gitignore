@@ -1,0 +1,16 @@
+# Dependencias y builds
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+# Secretos y configuración local: NUNCA a Git
+.env
+secrets/*.txt
+*.key
+age.key
+# Ficheros generados
+docker-compose.resolved.yml
+*.sarif
+sbom-*.json
+*.tar.gz

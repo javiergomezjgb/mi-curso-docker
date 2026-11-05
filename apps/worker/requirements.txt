@@ -1,0 +1,2 @@
+# El worker del kit solo usa la biblioteca estándar de Python.
+# Si añades dependencias (por ejemplo celery[redis]), ponlas aquí con versión fija.

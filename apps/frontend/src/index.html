@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Curso Docker · Frontend</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <h1>Curso Docker · Laboratorio</h1>
+    <p>Frontend servido por Nginx sin root. Las llamadas a <code>/api</code> van al servicio <code>api</code>.</p>
+    <section>
+      <h2>Estado de la API</h2>
+      <pre id="health">Consultando...</pre>
+    </section>
+    <section>
+      <h2>Trabajos (worker)</h2>
+      <button id="enqueue">Encolar un trabajo</button>
+      <pre id="jobs">-</pre>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "api",
+  "version": "1.0.0",
+  "description": "API del laboratorio del Curso Docker (Node.js sin dependencias externas)",
+  "private": true,
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "test": "node --test",
+    "start": "node dist/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT"
+}
