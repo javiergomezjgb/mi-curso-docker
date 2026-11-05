@@ -1,0 +1,22 @@
+# kind-config.yaml del curso (Día 4): 1 control-plane + 2 workers, puertos 80/443 al host
+# Uso (lo hace el laboratorio 4.1 del curso):
+#   kind create cluster --name curso-k8s --config .github/kind-config.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP
+  - role: worker
+  - role: worker
