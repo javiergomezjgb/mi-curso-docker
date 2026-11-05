@@ -1,0 +1,5 @@
+# .sops.yaml · reglas de cifrado de SOPS (Día 3)
+# Sustituye la clave pública por la tuya: la ves con  grep public ~/.config/sops/age/keys.txt
+creation_rules:
+  - path_regex: secrets\.enc\.yaml$
+    age: age1x8zels72hxulnzpnyrdljszmv4g36u5wfxt7n96wevza9rm0wyvshynez8

@@ -1,0 +1,188 @@
+# Pipeline CI/CD del Día 3: lint -> test -> build multi-arch -> scan -> sign + SBOM -> deploy staging
+# Erratas del curso corregidas:
+#  - no se usan "needs.build.outputs" sin declarar: build, escaneo, firma y SBOM van en el mismo job
+#  - "env.OWNOR" -> owner calculado en minúsculas (GHCR no admite mayúsculas)
+#  - los tags coinciden con el checklist: v1.0.0 (tag de Git), sha-xxxxxxx y latest
+#  - Trivy se instala con su script oficial en vez de "trivy-action@master" sin versión fija
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  lint:
+    name: Lint (hadolint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar hadolint
+        run: |
+          curl -sSL -o /usr/local/bin/hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
+          chmod +x /usr/local/bin/hadolint
+      - name: hadolint (0 avisos)
+        run: hadolint apps/frontend/Dockerfile apps/api/Dockerfile apps/worker/Dockerfile
+
+  test:
+    name: Tests (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [frontend, api, worker]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Tests en el stage builder
+        run: docker buildx build --target builder apps/${{ matrix.service }}
+
+  build:
+    name: Build, scan y sign (${{ matrix.service }})
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [frontend, api, worker]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Owner en minúsculas
+        run: echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login en GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tags y etiquetas OCI
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=tag
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build multi-arch y push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/${{ matrix.service }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: APP_VERSION=${{ github.ref_name }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          provenance: true
+          sbom: true
+
+      - name: Instalar Trivy
+        if: github.event_name != 'pull_request'
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+
+      - name: Trivy -> SARIF (pestaña Security)
+        if: github.event_name != 'pull_request'
+        run: |
+          trivy image --format sarif --output trivy-${{ matrix.service }}.sarif \
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.service }}@${{ steps.build.outputs.digest }}
+
+      - name: Subir SARIF a GitHub Security
+        if: github.event_name != 'pull_request'
+        # En repos privados sin GitHub Advanced Security esta subida falla: no bloquea el pipeline
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.service }}.sarif
+          category: trivy-${{ matrix.service }}
+
+      - name: Trivy gate (HIGH/CRITICAL con parche = fallo)
+        if: github.event_name != 'pull_request'
+        run: |
+          trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.service }}@${{ steps.build.outputs.digest }}
+
+      - name: Instalar cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Firmar (keyless, por digest)
+        if: github.event_name != 'pull_request'
+        run: cosign sign --yes ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.service }}@${{ steps.build.outputs.digest }}
+
+      - name: SBOM SPDX
+        if: github.event_name != 'pull_request'
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.service }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          artifact-name: sbom-${{ matrix.service }}.spdx.json
+
+      - name: SBOM CycloneDX
+        if: github.event_name != 'pull_request'
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.service }}@${{ steps.build.outputs.digest }}
+          format: cyclonedx-json
+          artifact-name: sbom-${{ matrix.service }}.cdx.json
+
+  deploy-staging:
+    name: Deploy staging (smoke test con Compose)
+    # El Día 4 se sustituye por el despliegue con Helm en kind
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar entorno
+        run: |
+          echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+          echo "VERSION=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          mkdir -p secrets
+          openssl rand -hex 16 > secrets/db_password.txt
+          openssl rand -hex 32 > secrets/jwt_secret.txt
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Levantar el stack con las imágenes publicadas
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --no-build --wait --wait-timeout 120
+      - name: Smoke tests
+        run: |
+          curl -fsS http://localhost:8080/healthz
+          curl -fsS http://localhost:3000/healthz
+          curl -fsS http://localhost:8080/api/health
+          curl -fsS -X POST http://localhost:3000/api/jobs
+      - name: Logs si falla
+        if: failure()
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml logs
+      - name: Limpieza
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v

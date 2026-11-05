@@ -1,14 +1,12 @@
-# docker-compose.yml base (Día 2) · stack completo: frontend, api, worker, db y redis
-# Erratas del curso corregidas: sin la clave obsoleta "version:", healthcheck también en el worker
-# y "configs" usado de verdad (nginx_config).
+# docker-compose.yml base (Día 3) · igual que el del Día 2 más el hardening L2 del curso en
+# frontend, api y worker: rootfs de solo lectura, tmpfs para lo escribible, cap_drop ALL y
+# no-new-privileges. db y redis no se endurecen así: sus entrypoints necesitan chown/setuid.
 name: curso
-
 x-logging: &default-logging
   driver: json-file
   options:
     max-size: "10m"
     max-file: "3"
-
 services:
   frontend:
     build:
@@ -33,11 +31,17 @@ services:
       start_period: 5s
     deploy:
       resources:
-        limits: { cpus: "0.5", memory: 256M }
-        reservations: { cpus: "0.1", memory: 64M }
+        limits: {cpus: "0.5", memory: 256M}
+        reservations: {cpus: "0.1", memory: 64M}
     restart: unless-stopped
     logging: *default-logging
-
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=50m
   api:
     build:
       context: ./apps/api
@@ -71,11 +75,17 @@ services:
       start_period: 10s
     deploy:
       resources:
-        limits: { cpus: "1.0", memory: 512M }
-        reservations: { cpus: "0.25", memory: 128M }
+        limits: {cpus: "1.0", memory: 512M}
+        reservations: {cpus: "0.25", memory: 128M}
     restart: unless-stopped
     logging: *default-logging
-
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=10m
   worker:
     build:
       context: ./apps/worker
@@ -96,11 +106,17 @@ services:
       start_period: 10s
     deploy:
       resources:
-        limits: { cpus: "0.5", memory: 256M }
-        reservations: { cpus: "0.1", memory: 64M }
+        limits: {cpus: "0.5", memory: 256M}
+        reservations: {cpus: "0.1", memory: 64M}
     restart: unless-stopped
     logging: *default-logging
-
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=10m
   db:
     image: postgres:16-alpine
     environment:
@@ -121,10 +137,9 @@ services:
       start_period: 10s
     deploy:
       resources:
-        limits: { cpus: "1.0", memory: 512M }
+        limits: {cpus: "1.0", memory: 512M}
     restart: unless-stopped
     logging: *default-logging
-
   redis:
     image: redis:7-alpine
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
@@ -139,10 +154,9 @@ services:
       retries: 5
     deploy:
       resources:
-        limits: { cpus: "0.5", memory: 300M }
+        limits: {cpus: "0.5", memory: 300M}
     restart: unless-stopped
     logging: *default-logging
-
 networks:
   frontend-net:
     driver: bridge
@@ -150,17 +164,14 @@ networks:
     driver: bridge
     # Sin salida a Internet: solo api, worker, db y redis hablan entre sí
     internal: true
-
 volumes:
   pgdata:
   redisdata:
-
 secrets:
   db_password:
     file: ./secrets/db_password.txt
   jwt_secret:
     file: ./secrets/jwt_secret.txt
-
 configs:
   nginx_config:
     file: ./apps/frontend/nginx.conf

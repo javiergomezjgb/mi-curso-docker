@@ -1,4 +1,4 @@
-# Makefile del curso (versión acumulada hasta el Día 2)
+# Makefile del curso (versión acumulada hasta el Día 3)
 # Uso: make help
 # Las variables se leen de .env (OWNER, VERSION...). Copia .env.example a .env y rellénalo.
 -include .env
@@ -99,3 +99,26 @@ compose-prod: ## Despliega en Swarm con base + prod (genera docker-compose.resol
 compose-prod-down: ## Elimina el stack de Swarm
 	docker stack rm curso-prod
 
+## ---------- Día 3: seguridad y CI ----------
+ci-lint: lint ## Lint de Dockerfiles y YAML
+	@command -v yamllint >/dev/null && yamllint -d relaxed docker-compose*.yml .github/workflows/*.yml || echo "(yamllint no instalado, se omite)"
+
+ci-test: test ## Tests (alias del pipeline)
+
+ci-build: buildx-setup push ## Build multi-arch y push
+
+ci-scan: scan ## Escaneo de vulnerabilidades
+
+ci-sbom: check-owner ## SBOM SPDX y CycloneDX con Syft
+	@for s in $(SERVICES); do \
+	  syft $(REGISTRY)/$(OWNER)/$$s:$(VERSION) -o spdx-json=sbom-$$s.spdx.json -o cyclonedx-json=sbom-$$s.cdx.json || exit 1; \
+	done; ls -1 sbom-*
+
+ci-sign: check-owner ## Firma las imágenes con cosign (clave local cosign.key)
+	@test -f cosign.key || { echo "Genera la clave antes: cosign generate-key-pair"; exit 1; }
+	@for s in $(SERVICES); do \
+	  d=$$(docker buildx imagetools inspect $(REGISTRY)/$(OWNER)/$$s:$(VERSION) --format '{{json .Manifest.Digest}}' | tr -d '"'); \
+	  cosign sign --yes --key cosign.key $(REGISTRY)/$(OWNER)/$$s@$$d || exit 1; \
+	done
+
+ci-all: ci-lint ci-test ci-build ci-scan ci-sbom ci-sign ## Pipeline completo en local

@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# API (Node.js) · Dockerfile multi-stage del Día 1, con las erratas del curso corregidas:
+# API (Node.js) · Dockerfile del Día 3 (hardened + build secret), con las erratas del curso corregidas:
 #  - en el builder se instalan TODAS las dependencias (no --only=production) y se podan al final
 #  - los comentarios van siempre en su propia línea (nunca detrás de una instrucción)
 #  - runtime distroless: sin shell ni npm, menos CVE para el escaneo del Día 3
@@ -9,7 +9,16 @@ FROM --platform=$BUILDPLATFORM node:22-alpine AS builder
 WORKDIR /app
 # Primero solo los manifiestos: esta capa se reutiliza de la caché si no cambian las dependencias
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+# Build secret (Día 3): el token de npm solo existe durante este RUN y no queda en ninguna capa.
+# Se construye con: docker build --secret id=npm_token,src=$HOME/.npm_token apps/api
+# Si no pasas el secreto, el build funciona igual (required=false) contra el registro público.
+RUN --mount=type=secret,id=npm_token,required=false \
+    --mount=type=cache,target=/root/.npm \
+    if [ -s /run/secrets/npm_token ]; then \
+      printf '//registry.npmjs.org/:_authToken=%s\n' "$(cat /run/secrets/npm_token)" > /tmp/.npmrc; \
+    fi && \
+    npm ci --userconfig /tmp/.npmrc && \
+    rm -f /tmp/.npmrc
 # Después el código, que cambia en cada commit
 COPY . .
 # Build, tests y poda de dependencias de desarrollo; mkdir por si no queda ninguna dependencia

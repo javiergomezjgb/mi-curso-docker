@@ -1,0 +1,5 @@
+# .trivyignore · excepciones de vulnerabilidades (una por línea: el identificador CVE)
+# Cada excepción DEBE ir documentada: motivo, quién la aceptó y fecha de revisión.
+# Ejemplo (descomenta solo si de verdad aplica):
+# Motivo: la función vulnerable no se usa; sin parche disponible. Revisar: 2026-12-01
+# CVE-2024-00000
