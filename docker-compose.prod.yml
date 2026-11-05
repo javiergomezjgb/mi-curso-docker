@@ -1,0 +1,43 @@
+# docker-compose.prod.yml · producción en Swarm (docker stack deploy)
+# Uso: make compose-prod   (genera docker-compose.resolved.yml y despliega el stack "curso-prod")
+# Erratas corregidas: sin "placement: node.role == worker" (en un Swarm de un solo nodo
+# no habría dónde ejecutar las réplicas); la db se fija al manager para conservar su volumen.
+services:
+  frontend:
+    deploy:
+      replicas: 3
+      update_config: { parallelism: 1, delay: 10s, failure_action: rollback, order: start-first }
+      rollback_config: { parallelism: 1, delay: 5s }
+      restart_policy: { condition: on-failure, max_attempts: 3 }
+
+  api:
+    deploy:
+      replicas: 3
+      update_config: { parallelism: 1, delay: 10s, failure_action: rollback, order: start-first }
+      rollback_config: { parallelism: 1, delay: 5s }
+      restart_policy: { condition: on-failure, max_attempts: 3 }
+
+  worker:
+    deploy:
+      replicas: 2
+      update_config: { parallelism: 1, delay: 10s, failure_action: rollback }
+      restart_policy: { condition: on-failure, max_attempts: 3 }
+
+  db:
+    deploy:
+      replicas: 1
+      placement:
+        constraints: ["node.role == manager"]
+      restart_policy: { condition: on-failure }
+
+  redis:
+    deploy:
+      replicas: 1
+      restart_policy: { condition: on-failure }
+
+networks:
+  frontend-net:
+    driver: overlay
+  backend-net:
+    driver: overlay
+    internal: true

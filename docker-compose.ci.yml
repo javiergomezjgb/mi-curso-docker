@@ -1,0 +1,12 @@
+# docker-compose.ci.yml · para CI: datos efímeros en memoria y sin puertos de depuración
+# Uso: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --wait
+# Errata corregida: no se monta a la vez un volumen y un tmpfs en la misma ruta.
+services:
+  db:
+    volumes: !reset []
+    tmpfs:
+      - /var/lib/postgresql/data:rw,size=256m
+
+  redis:
+    command: redis-server --save "" --appendonly no
+    volumes: !reset []

@@ -1,0 +1,37 @@
+# docker-compose.override.yml · desarrollo (Compose lo carga solo con "docker compose up")
+# Erratas corregidas: no se usa "ports: []" (YAML no válido para anular); para publicar
+# los puertos de db y redis en desarrollo, la red backend deja de ser "internal" aquí.
+services:
+  frontend:
+    # Recarga en caliente: los estáticos se sirven directamente desde src/
+    volumes:
+      - ./apps/frontend/src:/usr/share/nginx/html:ro
+
+  api:
+    build:
+      target: builder
+    # Nombre propio: así la imagen de desarrollo no sustituye a ghcr.io/.../api:vX.Y.Z
+    image: curso/api-dev:latest
+    command: ["node", "--inspect=0.0.0.0:9229", "--watch", "src/server.js"]
+    volumes:
+      - ./apps/api/src:/app/src:ro
+    ports:
+      - "9229:9229"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/healthz', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+
+  worker:
+    volumes:
+      - ./apps/worker/worker.py:/app/worker.py:ro
+
+  db:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+networks:
+  backend-net:
+    internal: false

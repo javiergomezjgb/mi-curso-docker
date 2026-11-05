@@ -1,4 +1,4 @@
-# Makefile del curso (versión del Día 1)
+# Makefile del curso (versión acumulada hasta el Día 2)
 # Uso: make help
 # Las variables se leen de .env (OWNER, VERSION...). Copia .env.example a .env y rellénalo.
 -include .env
@@ -69,4 +69,33 @@ dive: check-owner ## dive en modo CI: eficiencia mínima del 90 %
 	  echo "==> dive $$s"; \
 	  CI=true dive --ci --lowestEfficiency=0.9 $(REGISTRY)/$(OWNER)/$$s:$(VERSION) || exit 1; \
 	done
+
+## ---------- Día 2: Compose ----------
+compose-build: ## Construye las imágenes con Compose
+	docker compose build
+
+compose-up: ## Levanta el stack (base + override de desarrollo)
+	docker compose up -d
+
+compose-down: ## Para el stack (conserva los volúmenes)
+	docker compose down
+
+compose-down-v: ## Para el stack y BORRA los volúmenes (datos)
+	docker compose down -v
+
+compose-logs: ## Sigue los logs de todos los servicios
+	docker compose logs -f
+
+compose-ps: ## Estado y salud de los servicios
+	docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
+
+compose-prod: ## Despliega en Swarm con base + prod (genera docker-compose.resolved.yml)
+	$(COMPOSE_PROD) config > docker-compose.resolved.yml
+	@# Errata del curso: "docker stack deploy" no acepta tal cual la salida de "compose config".
+	@# Se quita "name", depends_on pasa a lista, cpus a texto y los puertos publicados a número.
+	yq -i 'del(.name) | (.services[] | select(has("depends_on")) | .depends_on) |= keys | (.. | select(has("cpus")) | .cpus) |= tostring | (.services[].ports[]? | .published) |= (. | tonumber)' docker-compose.resolved.yml
+	docker stack deploy --with-registry-auth -c docker-compose.resolved.yml curso-prod
+
+compose-prod-down: ## Elimina el stack de Swarm
+	docker stack rm curso-prod
 
